@@ -1,23 +1,14 @@
-# Use Node.js 18 Alpine image
-FROM node:18-alpine
+FROM python:3.9
 
-# Set working directory
-WORKDIR /app
+WORKDIR /code
 
-# Copy package files
-COPY package*.json ./
+# Install system dependencies for audio processing
+RUN apt-get update && apt-get install -y ffmpeg
 
-# Install dependencies
-RUN npm ci --only=production
+COPY ./requirements.txt /code/requirements.txt
+RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
-# Copy source code
 COPY . .
 
-# Build the application
-RUN npm run build
-
-# Expose port
-EXPOSE 3000
-
-# Start the application
-CMD ["npm", "start"]
+# Hugging Face Spaces requires port 7860
+CMD ["gunicorn", "-b", "0.0.0.0:7860", "app:app"]

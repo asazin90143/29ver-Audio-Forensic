@@ -13,6 +13,8 @@ import {
   Waves, Volume2, VolumeX, Bomb, Hammer, AlertTriangle, Megaphone, Zap
 } from "lucide-react"
 
+import ForensicDashboard from "./forensic-dashboard" // New Component
+
 // --- FORENSIC TRACK COMPONENT ---
 function ForensicTrack({ url, label, color, icon: Icon, masterPlaying, masterTime, stats }: any) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -112,6 +114,9 @@ function ForensicTrack({ url, label, color, icon: Icon, masterPlaying, masterTim
   )
 }
 
+// Import PDF Generator
+import { generatePDFReport } from "@/lib/pdf-generator"
+
 // --- MAIN SONAR VIEW ---
 export default function SonarView({
   audioData,
@@ -121,17 +126,26 @@ export default function SonarView({
   currentStems,
   setCurrentStems,
   showStems,
-  setShowStems
+  setShowStems,
+  externalRefs // New Prop
 }: any) {
-  const canvas2DRef = useRef<HTMLCanvasElement>(null)
-  const canvas3DRef = useRef<HTMLCanvasElement>(null)
+  // Use passed refs or fallback to local (though page.tsx provides them now)
+  const localCanvas2DRef = useRef<HTMLCanvasElement>(null)
+  const localCanvas3DRef = useRef<HTMLCanvasElement>(null)
+  const localOscRef = useRef<HTMLCanvasElement>(null)
+  const localSpecRef = useRef<HTMLCanvasElement>(null)
+
+  const canvas2DRef = externalRefs?.canvas2DRef || localCanvas2DRef
+  const canvas3DRef = externalRefs?.canvas3DRef || localCanvas3DRef
+  const oscCanvasRef = externalRefs?.oscRef || localOscRef
+  const specCanvasRef = externalRefs?.specRef || localSpecRef
+
   const audioRef = useRef<HTMLAudioElement>(null)
 
   const [isPlaying, setIsPlaying] = useState(false)
   const [rotation, setRotation] = useState({ x: 0.5, y: 0.5 })
   const [currentTime, setCurrentTime] = useState(0)
   const [isSeparating, setIsSeparating] = useState(false)
-
   // Interaction State
   const [hoveredEvent, setHoveredEvent] = useState<any | null>(null);
   const mousePos = useRef({ x: 0, y: 0 });
@@ -226,10 +240,14 @@ export default function SonarView({
         if (setShowStems) setShowStems(true);
 
         // CRITICAL FIX: Update the parent audioData with the fresh classification events
+        // AND preserve/update frequencySpectrum to prevent blank charts
         if (setAudioData && result.classification) {
           setAudioData((prev: any) => ({
             ...prev,
-            analysisResults: result.classification
+            analysisResults: {
+              ...result.classification,
+              frequencySpectrum: result.frequencySpectrum || prev.analysisResults?.frequencySpectrum || []
+            }
           }));
         }
       } else {
@@ -252,10 +270,18 @@ export default function SonarView({
     ctx.fillStyle = "#020617";
     ctx.fillRect(0, 0, width, height);
 
-    // Draw Grid (Circles)
+    // Outer glow ring
+    const outerGlow = ctx.createRadialGradient(cx, cy, maxR * 0.85, cx, cy, maxR * 1.1);
+    outerGlow.addColorStop(0, "rgba(34, 197, 94, 0)");
+    outerGlow.addColorStop(0.5, "rgba(34, 197, 94, 0.08)");
+    outerGlow.addColorStop(1, "rgba(34, 197, 94, 0)");
+    ctx.fillStyle = outerGlow;
+    ctx.fillRect(0, 0, width, height);
+
+    // Draw Grid (Circles) — brighter
     ctx.lineWidth = 1;
     for (let i = 1; i <= 5; i++) {
-      ctx.strokeStyle = i === 5 ? "rgba(99, 102, 241, 0.5)" : "rgba(34, 197, 94, 0.1)";
+      ctx.strokeStyle = i === 5 ? "rgba(99, 102, 241, 0.6)" : "rgba(34, 197, 94, 0.25)";
       if (i === 5) ctx.setLineDash([5, 5]); else ctx.setLineDash([]);
       ctx.beginPath();
       ctx.arc(cx, cy, (maxR / 5) * i, 0, Math.PI * 2);
@@ -263,14 +289,14 @@ export default function SonarView({
 
       // Distance Labels on Grid
       if (i < 5) {
-        ctx.fillStyle = "rgba(34, 197, 94, 0.3)";
-        ctx.font = "9px monospace";
-        ctx.fillText(`${(100 - i * 20)}m`, cx + 2, cy - (maxR / 5) * i - 2);
+        ctx.fillStyle = "rgba(34, 197, 94, 0.5)";
+        ctx.font = "10px monospace";
+        ctx.fillText(`${(100 - i * 20)}m`, cx + 4, cy - (maxR / 5) * i - 4);
       }
     }
 
-    // Draw Grid (Lines)
-    ctx.strokeStyle = "rgba(34, 197, 94, 0.05)";
+    // Draw Grid (Lines) — brighter
+    ctx.strokeStyle = "rgba(34, 197, 94, 0.12)";
     ctx.setLineDash([]);
     for (let i = 0; i < 12; i++) {
       const angle = (i / 12) * Math.PI * 2;
@@ -280,11 +306,23 @@ export default function SonarView({
       ctx.stroke();
     }
 
+    // Center crosshair
+    ctx.strokeStyle = "rgba(34, 197, 94, 0.5)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx - 8, cy); ctx.lineTo(cx + 8, cy);
+    ctx.moveTo(cx, cy - 8); ctx.lineTo(cx, cy + 8);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+    ctx.fillStyle = "#4ade80";
+    ctx.fill();
+
     // Scanning Effect
     scanAngle.current = (scanAngle.current + 0.02) % (Math.PI * 2);
     const gradient = ctx.createConicGradient(scanAngle.current, cx, cy);
     gradient.addColorStop(0, "rgba(34, 197, 94, 0)");
-    gradient.addColorStop(0.1, "rgba(34, 197, 94, 0.3)"); // Stronger scan
+    gradient.addColorStop(0.1, "rgba(34, 197, 94, 0.35)");
     gradient.addColorStop(0.2, "rgba(34, 197, 94, 0)");
 
     ctx.fillStyle = gradient;
@@ -306,28 +344,21 @@ export default function SonarView({
     // Detect Hover
     let foundHover: any = null;
 
-    // Draw Events
+    // Draw Events — bigger dots with glow
     activeEvents.forEach((ev: any) => {
-      // Map Time to Angle (Clockwise from top)
       const duration = audioData?.analysisResults?.duration || 1;
       const normalizedTime = (ev.time || 0) / duration;
       const a = normalizedTime * Math.PI * 2 - Math.PI / 2;
 
-      // Map dB to Distance (Louder = Closer)
-      // -10dB (close) -> 10m
-      // -60dB (far) -> 60m+
       const db = Number(ev.decibels || -60);
-      // Normalize dB: -90...0 -> 0...1
       const normalizedDb = Math.max(0, Math.min(1, (db + 90) / 90));
-      // Using "Louder is Closer" logic as requested "middle is the device who receives"
       const radiusFactor = 1.0 - normalizedDb;
-      const d = (radiusFactor * maxR * 0.9) + (maxR * 0.1); // min 10% radius buffer
+      const d = (radiusFactor * maxR * 0.9) + (maxR * 0.1);
 
       const x = cx + Math.cos(a) * d;
       const y = cy + Math.sin(a) * d;
 
-      const isActive = Math.abs(currentTime - (ev.time || 0)) < 0.3;
-      // Check Hover
+      const isActive = Math.abs(currentTime - Number(ev.time || 0)) < 0.3;
       const mh = mousePos.current;
       const distToMouse = Math.sqrt((mh.x - x) ** 2 + (mh.y - y) ** 2);
       const isHovered = distToMouse < 15;
@@ -336,65 +367,57 @@ export default function SonarView({
       const baseColor = ev.speaker === "SPEAKER_01" ? "#ef4444" : "#3b82f6";
       const color = isActive ? "#ffffff" : baseColor;
 
-      // --- VISUALIZATION ---
+      // Always draw a subtle glow ring around each event
+      ctx.beginPath();
+      ctx.arc(x, y, 10, 0, Math.PI * 2);
+      ctx.fillStyle = baseColor + "30";
+      ctx.fill();
 
-      // 1. Spreading Ripple Effect (when active)
+      // Spreading Ripple Effect (when active)
       if (isActive) {
-        const pulse = (Date.now() / 1000) % 1; // 0 to 1
+        const pulse = (Date.now() / 1000) % 1;
         ctx.beginPath();
         ctx.strokeStyle = baseColor;
         ctx.globalAlpha = 1 - pulse;
         ctx.lineWidth = 2;
-        const rippleR = 5 + (pulse * 30); // Expand to 35px
-        ctx.arc(x, y, rippleR, 0, Math.PI * 2);
+        ctx.arc(x, y, 5 + (pulse * 30), 0, Math.PI * 2);
         ctx.stroke();
-
-        // Second ripple
         const pulse2 = ((Date.now() / 1000) + 0.5) % 1;
         ctx.globalAlpha = 1 - pulse2;
-        const rippleR2 = 5 + (pulse2 * 30);
-        ctx.arc(x, y, rippleR2, 0, Math.PI * 2);
+        ctx.beginPath();
+        ctx.arc(x, y, 5 + (pulse2 * 30), 0, Math.PI * 2);
         ctx.stroke();
-
         ctx.globalAlpha = 1.0;
       }
 
-      // 2. The Point
+      // The Point — bigger
       ctx.beginPath();
-      ctx.arc(x, y, isActive ? 6 : 4, 0, Math.PI * 2);
+      ctx.arc(x, y, isActive ? 7 : 5, 0, Math.PI * 2);
       ctx.fillStyle = color;
-
-      if (isActive || isHovered) {
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = baseColor;
-      }
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = baseColor;
       ctx.fill();
       ctx.shadowBlur = 0;
 
-      // 3. Labels
+      // Labels
       if (isActive || isHovered) {
-        // Draw connecting line to center if active
         if (isActive) {
           ctx.beginPath();
           ctx.strokeStyle = baseColor;
-          ctx.globalAlpha = 0.2;
+          ctx.globalAlpha = 0.3;
+          ctx.lineWidth = 1;
           ctx.moveTo(cx, cy);
           ctx.lineTo(x, y);
           ctx.stroke();
           ctx.globalAlpha = 1.0;
         }
-
-        // Text Label
         ctx.fillStyle = "#ffffff";
         ctx.font = "bold 11px monospace";
         ctx.textAlign = "left";
-        const labelText = `${ev.type || "SIGNAL"}`;
-        ctx.fillText(labelText, x + 12, y);
-
+        ctx.fillText(`${ev.type || "SIGNAL"}`, x + 14, y);
         ctx.fillStyle = "rgba(255,255,255,0.7)";
         ctx.font = "10px monospace";
-        const subLabel = `${Math.abs(db).toFixed(0)}dB | ${((ev.confidence || 0) * 100).toFixed(0)}%`;
-        ctx.fillText(subLabel, x + 12, y + 12);
+        ctx.fillText(`${Math.abs(db).toFixed(0)}dB | ${((ev.confidence || 0) * 100).toFixed(0)}%`, x + 14, y + 12);
       }
     });
 
@@ -407,48 +430,114 @@ export default function SonarView({
     ctx.fillStyle = "#020617";
     ctx.fillRect(0, 0, width, height);
 
-    // Grid Gradient
+    // Grid Gradient (Floor Glow) — stronger
     const cx = width / 2;
     const cy = height / 2;
-    const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, width / 1.5);
-    grd.addColorStop(0, "rgba(2, 6, 23, 0)");
-    grd.addColorStop(1, "rgba(2, 6, 23, 1)");
+    const grd = ctx.createRadialGradient(cx, cy + 80, 0, cx, cy + 80, width * 0.8);
+    grd.addColorStop(0, "rgba(30, 41, 59, 0.7)");
+    grd.addColorStop(0.5, "rgba(15, 23, 42, 0.4)");
+    grd.addColorStop(1, "rgba(2, 6, 23, 0)");
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, height * 0.3, width, height * 0.7);
 
     // 3D Projection Helper
     const project = (x: number, y: number, z: number) => {
-      const scale = 400 / (400 + z);
+      const fl = 400;
+      const scale = fl / (fl + z + 200);
+      if (scale <= 0) return { x: 0, y: 0, s: 0, zIndex: z };
       const x2D = width / 2 + x * scale;
-      const y2D = height / 2.5 + y * scale;
+      const y2D = height / 2 + y * scale;
       return { x: x2D, y: y2D, s: scale, zIndex: z }
     }
 
     const rx = rotation.x;
     const ry = rotation.y;
 
-    // Draw Floor Grid
-    ctx.strokeStyle = "rgba(99, 102, 241, 0.15)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let i = -200; i <= 200; i += 40) {
-      // Horizontal Lines
-      let p1 = project(i * Math.cos(ry) - -200 * Math.sin(ry), 100, i * Math.sin(ry) + -200 * Math.cos(ry));
-      let p2 = project(i * Math.cos(ry) - 200 * Math.sin(ry), 100, i * Math.sin(ry) + 200 * Math.cos(ry));
-      if (p1.s > 0 && p2.s > 0) { ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); }
+    const time = Date.now() / 1000;
+    const ringOffset = (time * 20) % 50;
 
-      // Vertical Lines
-      let p3 = project(-200 * Math.cos(ry) - i * Math.sin(ry), 100, -200 * Math.sin(ry) + i * Math.cos(ry));
-      let p4 = project(200 * Math.cos(ry) - i * Math.sin(ry), 100, 200 * Math.sin(ry) + i * Math.cos(ry));
-      if (p3.s > 0 && p4.s > 0) { ctx.moveTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y); }
+    // Draw Floor Grid — much more visible
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(99, 102, 241, 0.35)";
+    ctx.beginPath();
+
+    for (let r = ringOffset; r <= 600; r += 50) {
+      if (r < 10) continue;
+      let firstPoint = true;
+      for (let a = 0; a <= Math.PI * 2; a += 0.1) {
+        const bx = Math.cos(a) * r;
+        const bz = Math.sin(a) * r;
+        const x = bx * Math.cos(ry) - bz * Math.sin(ry);
+        const z = bx * Math.sin(ry) + bz * Math.cos(ry);
+        const y = 100;
+        const p = project(x, y, z);
+        if (p.s > 0) {
+          if (firstPoint) { ctx.moveTo(p.x, p.y); firstPoint = false; }
+          else ctx.lineTo(p.x, p.y);
+        }
+      }
     }
     ctx.stroke();
 
+    // Draw Grid Lines — brighter
+    ctx.beginPath();
+    for (let i = -300; i <= 300; i += 50) {
+      let p1 = project(i * Math.cos(ry) - -300 * Math.sin(ry), 100, i * Math.sin(ry) + -300 * Math.cos(ry));
+      let p2 = project(i * Math.cos(ry) - 300 * Math.sin(ry), 100, i * Math.sin(ry) + 300 * Math.cos(ry));
+      if (p1.s > 0 && p2.s > 0) {
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+      }
+      let p3 = project(-300 * Math.cos(ry) - i * Math.sin(ry), 100, -300 * Math.sin(ry) + i * Math.cos(ry));
+      let p4 = project(300 * Math.cos(ry) - i * Math.sin(ry), 100, 300 * Math.sin(ry) + i * Math.cos(ry));
+      if (p3.s > 0 && p4.s > 0) {
+        ctx.moveTo(p3.x, p3.y);
+        ctx.lineTo(p4.x, p4.y);
+      }
+    }
+    ctx.strokeStyle = "rgba(99, 102, 241, 0.4)";
+    ctx.stroke();
+
+    // Draw a scanning plane (horizontal sweep)
+    const scanZ = ((time * 60) % 600) - 300;
+    const scanP1 = project(-300 * Math.cos(ry) - scanZ * Math.sin(ry), 100, -300 * Math.sin(ry) + scanZ * Math.cos(ry));
+    const scanP2 = project(300 * Math.cos(ry) - scanZ * Math.sin(ry), 100, 300 * Math.sin(ry) + scanZ * Math.cos(ry));
+    const scanP3 = project(300 * Math.cos(ry) - scanZ * Math.sin(ry), -100, 300 * Math.sin(ry) + scanZ * Math.cos(ry));
+    const scanP4 = project(-300 * Math.cos(ry) - scanZ * Math.sin(ry), -100, -300 * Math.sin(ry) + scanZ * Math.cos(ry));
+    if (scanP1.s > 0 && scanP2.s > 0) {
+      ctx.fillStyle = "rgba(16, 185, 129, 0.08)";
+      ctx.beginPath();
+      ctx.moveTo(scanP1.x, scanP1.y);
+      ctx.lineTo(scanP2.x, scanP2.y);
+      ctx.lineTo(scanP3.x, scanP3.y);
+      ctx.lineTo(scanP4.x, scanP4.y);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = "rgba(16, 185, 129, 0.4)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(scanP1.x, scanP1.y);
+      ctx.lineTo(scanP2.x, scanP2.y);
+      ctx.stroke();
+    }
+
+    // Center marker
+    const centerP = project(0, 100, 0);
+    if (centerP.s > 0) {
+      ctx.fillStyle = "rgba(99, 102, 241, 0.6)";
+      ctx.beginPath();
+      ctx.arc(centerP.x, centerP.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     // Hit Testing Variables
-    let bestDist = 20; // Hit radius
+    let bestDist = 20;
     let foundVoxel: any = null;
     const mx = mousePos3D.current.x;
     const my = mousePos3D.current.y;
 
-    // Sort events by Z-index (Back to Front) for correct occlusion
+    // Sort events
     const renderList: any[] = [];
 
     activeEvents.forEach((ev: any) => {
@@ -457,97 +546,127 @@ export default function SonarView({
       // Calculate 3D Position
       const xRaw = (((ev.time || 0) / duration) * 400) - 200;
 
-      // Z-Depth based on dB (Louder = Closer to center/camera?)
-      // Let's map dB to 'depth' in the scene.
-      // -10dB -> Close (z=-100), -90dB -> Far (z=100)
+      // Map dB to Depth
       const db = Number(ev.decibels || -60);
-      const normalizedDb = Math.max(0, Math.min(1, (db + 90) / 90)); // 0..1
+      const normalizedDb = Math.max(0, Math.min(1, (db + 90) / 90));
       const zRaw = ((1 - normalizedDb) * 300) - 150;
 
       // Apply Rotation
       const x = xRaw * Math.cos(ry) - zRaw * Math.sin(ry);
       const z = xRaw * Math.sin(ry) + zRaw * Math.cos(ry);
-      const y = 100; // Floor level
+      const yBase = 100; // Floor
 
-      // Height
+      // Height based on confidence
       const confidence = ev.confidence || 0.5;
       const h = Math.max(20, confidence * 150);
 
       // Project Base and Top
-      const projBase = project(x, y, z);
-      const projTop = project(x, y - h, z);
+      const projBase = project(x, yBase, z);
+      const projTop = project(x, yBase - h, z);
 
       if (projBase.s > 0) {
         renderList.push({ ev, projBase, projTop, zIndex: z, h, isActive: Math.abs(currentTime - (ev.time || 0)) < 0.3 });
       }
     });
 
-    // Back-to-front painter's algorithm
     renderList.sort((a, b) => b.zIndex - a.zIndex);
 
     renderList.forEach((item) => {
-      const { ev, projBase, projTop, isActive } = item;
+      const { ev, projBase, projTop, isActive, h, zIndex } = item;
 
       // Check Hover
-      // Simple check: distance to the vertical line of the voxel
-      const dx = mx - projBase.x;
-      const dy = my - (projBase.y + projTop.y) / 2; // Midpoint
-      // Or check against line segment... simplified to point dist for now
       const dist = Math.sqrt((mx - projTop.x) ** 2 + (my - projTop.y) ** 2);
-
       const isHovered = dist < 20;
       if (isHovered && dist < bestDist) {
         bestDist = dist;
         foundVoxel = ev;
       }
-      // If this specific item matches the tracked hovered state
       const isSelected = hoveredVoxel && hoveredVoxel === ev;
 
-      const color = ev.speaker === 'SPEAKER_01' ? '#ef4444' : '#3b82f6'; // Red vs Blue
+      const baseColor = ev.speaker === 'SPEAKER_01' ? '#ef4444' : '#3b82f6'; // Red vs Blue
 
-      ctx.lineWidth = (isActive || isSelected) ? 3 : 1;
-      ctx.strokeStyle = (isActive || isSelected) ? "#ffffff" : color;
+      // Calculate Opacity based on Z-Distance (Fog)
+      // zIndex ranges roughly -200 to 200. Far away (200) should be faded.
+      const fogFactor = Math.max(0.2, 1 - (zIndex + 200) / 600);
 
-      // Draw Pillar
+      const alpha = isActive || isSelected ? 1 : fogFactor;
+      const color = isActive || isSelected ? "#ffffff" : baseColor;
+
+      // 1. Draw "Volumetric" Pillar (Gradient Line)
+      const grad = ctx.createLinearGradient(projBase.x, projBase.y, projTop.x, projTop.y);
+      grad.addColorStop(0, `${baseColor}00`); // Transparent at bottom
+      grad.addColorStop(0.2, `${baseColor}40`);
+      grad.addColorStop(1, `${baseColor}FF`); // Opaque at top
+
+      ctx.lineWidth = projBase.s * (isActive ? 12 : 6);
+      ctx.strokeStyle = grad;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(projBase.x, projBase.y);
+      ctx.lineTo(projTop.x, projTop.y);
+      ctx.stroke();
+      ctx.lineCap = "butt"; // Reset
+
+      // 2. Connector Line (Thin, distinct)
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = isActive ? "#fff" : `${baseColor}80`;
       ctx.beginPath();
       ctx.moveTo(projBase.x, projBase.y);
       ctx.lineTo(projTop.x, projTop.y);
       ctx.stroke();
 
-      // Draw Top Point / Head
-      ctx.fillStyle = (isActive || isSelected) ? "#ffffff" : color;
+      // 3. Base Ripple
+      ctx.strokeStyle = baseColor;
+      ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.arc(projTop.x, projTop.y, projTop.s * (isActive ? 6 : 3), 0, Math.PI * 2);
-      ctx.fill();
+      ctx.ellipse(projBase.x, projBase.y, projBase.s * 10, projBase.s * 4, 0, 0, Math.PI * 2);
+      ctx.stroke();
 
-      // Effect: Floor Ripple
-      if (isActive) {
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = color;
-        ctx.strokeStyle = color;
+      // 4. Top Orb (Glowing)
+      const orbSize = projTop.s * (isActive ? 8 : 4);
+
+      // Glow
+      if (isActive || isSelected) {
+        const glow = ctx.createRadialGradient(projTop.x, projTop.y, 0, projTop.x, projTop.y, orbSize * 4);
+        glow.addColorStop(0, `${baseColor}FF`);
+        glow.addColorStop(1, `${baseColor}00`);
+        ctx.fillStyle = glow;
         ctx.beginPath();
-        ctx.ellipse(projBase.x, projBase.y, projBase.s * 15, projBase.s * 8, 0, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.shadowBlur = 0;
+        ctx.arc(projTop.x, projTop.y, orbSize * 4, 0, Math.PI * 2);
+        ctx.fill();
       }
 
-      // Label 3D
+      // Core
+      ctx.fillStyle = isActive ? "#ffffff" : baseColor;
+      ctx.beginPath();
+      ctx.arc(projTop.x, projTop.y, orbSize, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Label 3D (Floating Billboard)
       if (isActive || isSelected) {
         ctx.fillStyle = "#ffffff";
         ctx.font = "bold 10px monospace";
         ctx.textAlign = "center";
-        const label = `${ev.type} ${Math.abs(Number(ev.decibels)).toFixed(0)}dB`;
-        ctx.fillText(label, projTop.x, projTop.y - 12);
+        ctx.shadowColor = "black";
+        ctx.shadowBlur = 4;
+        const label = `${ev.type}`;
+        ctx.fillText(label, projTop.x, projTop.y - 15);
+        ctx.font = "9px monospace";
+        ctx.fillStyle = "#cbd5e1";
+        ctx.fillText(`${Math.abs(Number(ev.decibels)).toFixed(1)}dB`, projTop.x, projTop.y - 5);
+        ctx.shadowBlur = 0;
+
+        // Draw leader line to actual 3D point
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(projTop.x, projTop.y);
+        ctx.lineTo(projTop.x, projTop.y - 15); // Connect text to orb
+        ctx.stroke();
       }
     });
 
     setHoveredVoxel(foundVoxel);
-
-    // Vignette Overlay
-    ctx.fillStyle = grd;
-    ctx.globalCompositeOperation = "multiply"; // Darken edges
-    ctx.fillRect(0, 0, width, height);
-    ctx.globalCompositeOperation = "source-over";
 
   }, [audioData, activeEvents, rotation, currentTime, hoveredVoxel])
 
@@ -687,6 +806,16 @@ export default function SonarView({
           </div>
         </Card>
       </div>
+
+      <ForensicDashboard
+        audioData={audioData}
+        isPlaying={isPlaying}
+        currentTime={currentTime}
+        activeEvents={activeEvents}
+        audioRef={audioRef}
+        externalOscilloscopeRef={oscCanvasRef}
+        externalSpectrogramRef={specCanvasRef}
+      />
 
       <Tabs defaultValue="separation" className="w-full">
         <TabsList className="bg-slate-950 border border-slate-800 h-16 p-1 gap-2">

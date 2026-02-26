@@ -20,23 +20,36 @@ interface AudioData {
 
 interface EnhancedAudioAnalysisProps {
   audioData: AudioData | null
+  visualRefs?: any // Added Refs
 }
 
-export default function EnhancedAudioAnalysis({ audioData }: EnhancedAudioAnalysisProps) {
+export default function EnhancedAudioAnalysis({ audioData, ...props }: EnhancedAudioAnalysisProps) {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
   const [pdfProgress, setPdfProgress] = useState(0)
   const [pdfStage, setPdfStage] = useState("")
   const [isSaving, setIsSaving] = useState(false)
+
   const [saveStatus, setSaveStatus] = useState<string>("")
   const [dbStatus, setDbStatus] = useState<{ connected: boolean; message?: string }>({ connected: false })
   const [rotation3D, setRotation3D] = useState({ x: 0, y: 0 })
   const [zoom3D, setZoom3D] = useState(1)
+  const [autoRotate3D, setAutoRotate3D] = useState(false)
+
+  // 2D Spectrum State
+  const [zoom2D, setZoom2D] = useState(1)
+  const [pan2D, setPan2D] = useState(0)
+  const [hoveredFreq, setHoveredFreq] = useState<{ frequency: number; magnitude: number } | null>(null)
 
   const spectrum3DCanvasRef = useRef<HTMLCanvasElement>(null)
+  const spectrum2DCanvasRef = useRef<HTMLCanvasElement>(null)
 
   // Check database connection on component mount
   useEffect(() => {
     const checkDatabaseConnection = async () => {
+      console.log("Audio Data received:", audioData)
+      console.log("Analysis Results:", audioData?.analysisResults)
+      console.log("Frequency Spectrum:", audioData?.analysisResults?.frequencySpectrum)
+
       const supabaseStatus = getSupabaseStatus()
       if (!supabaseStatus.connected) {
         setDbStatus({
@@ -281,6 +294,38 @@ export default function EnhancedAudioAnalysis({ audioData }: EnhancedAudioAnalys
     ctx.arc(centerX, centerY, 4, 0, 2 * Math.PI)
     ctx.fill()
 
+    // --- LEGEND ---
+    const legendX = 10
+    const legendY = 10
+    const legendW = 120
+    const legendH = 90
+
+    ctx.fillStyle = "rgba(0, 0, 0, 0.6)"
+    ctx.fillRect(legendX, legendY, legendW, legendH)
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.2)"
+    ctx.strokeRect(legendX, legendY, legendW, legendH)
+
+    ctx.fillStyle = "white"
+    ctx.font = "bold 11px Arial"
+    ctx.textAlign = "left"
+    ctx.fillText("3D Spectrum Legend", legendX + 10, legendY + 20)
+
+    ctx.font = "10px Arial"
+    // Freq Color Gradient
+    const grad = ctx.createLinearGradient(legendX + 10, legendY + 30, legendX + 110, legendY + 30)
+    grad.addColorStop(0, "blue")
+    grad.addColorStop(1, "red")
+    ctx.fillStyle = grad
+    ctx.fillRect(legendX + 10, legendY + 30, 100, 10)
+    ctx.fillStyle = "#cccccc"
+    ctx.fillText("Low Freq → High Freq", legendX + 10, legendY + 52)
+
+    // Height = Amplitude
+    ctx.fillStyle = "#cccccc"
+    ctx.fillText("Height = Amplitude", legendX + 10, legendY + 68)
+    // Depth = Time/Phase
+    ctx.fillText("Depth = Time/Phase", legendX + 10, legendY + 82)
+
     // Add rotation info
     ctx.fillStyle = "rgba(255, 255, 255, 0.6)"
     ctx.font = "10px Arial"
@@ -291,6 +336,264 @@ export default function EnhancedAudioAnalysis({ audioData }: EnhancedAudioAnalys
     )
     ctx.fillText(`Zoom: ${zoom3D.toFixed(1)}x`, 10, height - 15)
   }, [audioData, rotation3D, zoom3D])
+
+  // Auto-rotation effect
+  useEffect(() => {
+    if (!autoRotate3D) return
+    const interval = setInterval(() => {
+      setRotation3D((prev) => ({ ...prev, y: prev.y + 0.005 }))
+    }, 20)
+    return () => clearInterval(interval)
+  }, [autoRotate3D])
+
+  // 2D Frequency Spectrum Visualization
+  const draw2DSpectrum = useCallback(() => {
+    const canvas = spectrum2DCanvasRef.current
+    if (!canvas || !audioData?.analysisResults?.frequencySpectrum) return
+
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    const { width, height } = canvas
+    ctx.clearRect(0, 0, width, height)
+
+    // Background
+    ctx.fillStyle = "#f8f9fa"
+    ctx.fillRect(0, 0, width, height)
+
+    // Grid
+    ctx.strokeStyle = "#e9ecef"
+    ctx.lineWidth = 1
+    ctx.beginPath()
+
+    // Vertical Grid & Freq Labels
+    const stepsX = 10
+    for (let i = 0; i <= stepsX; i++) {
+      const x = (i / stepsX) * width
+      ctx.moveTo(x, 0)
+      ctx.lineTo(x, height)
+    }
+
+    // Horizontal Grid & Magnitude Labels
+    const stepsY = 5
+    for (let i = 0; i <= stepsY; i++) {
+      const y = (i / stepsY) * height
+      ctx.moveTo(0, y)
+      ctx.lineTo(width, y)
+    }
+    ctx.stroke()
+
+    // Draw Labels (Separate Pass for Clarity)
+    ctx.fillStyle = "#6b7280" // Gray-500
+    ctx.font = "10px Inter, sans-serif"
+
+    // Y-Axis Labels (Magnitude %)
+    ctx.textAlign = "left"
+    for (let i = 0; i <= stepsY; i++) {
+      const y = height - (i / stepsY) * height
+      // value 0 to 100%
+      const val = (i / stepsY) * 100
+      if (i > 0) ctx.fillText(`${val.toFixed(0)}%`, 5, y + 3)
+    }
+
+    const spectrum = audioData.analysisResults.frequencySpectrum
+    if (!spectrum || spectrum.length === 0) return
+
+    const results = audioData.analysisResults
+    const isEnhanced = results.enhanced || results.analysisType === "enhanced_classification"
+    // Safety check for empty spectrum
+    const lastPoint = spectrum[spectrum.length - 1]
+    const maxFreq = lastPoint ? lastPoint.frequency : 20000
+
+    // Draw Bars
+    const barWidth = (width / spectrum.length) * zoom2D
+    const offsetX = pan2D
+
+    ctx.fillStyle = isEnhanced ? "rgba(59, 130, 246, 0.6)" : "rgba(168, 85, 247, 0.6)" // Blue or Purple
+    ctx.strokeStyle = isEnhanced ? "rgba(59, 130, 246, 1)" : "rgba(168, 85, 247, 1)"
+
+    spectrum.forEach((point: any, index: number) => {
+      const x = index * barWidth + offsetX
+      const barHeight = point.magnitude * height
+      const y = height - barHeight
+
+      // Only draw if visible
+      if (x + barWidth > 0 && x < width) {
+        ctx.fillRect(x, y, barWidth - 1, barHeight)
+        ctx.strokeRect(x, y, barWidth - 1, barHeight)
+      }
+    })
+
+    // Hover Line & Label
+    if (hoveredFreq) {
+      // Re-calculate x position for the hovered frequency
+      const index = spectrum.findIndex((s: any) => s.frequency === hoveredFreq.frequency)
+      if (index !== -1) {
+        const x = index * barWidth + offsetX + barWidth / 2
+
+        if (x > 0 && x < width) {
+          ctx.strokeStyle = "red"
+          ctx.lineWidth = 1
+          ctx.setLineDash([5, 5])
+          ctx.beginPath()
+          ctx.moveTo(x, 0)
+          ctx.lineTo(x, height)
+          ctx.stroke()
+          ctx.setLineDash([])
+
+          // Tooltip
+          const fontSize = 12
+          ctx.font = `bold ${fontSize}px Inter, sans-serif`
+          const text = `${hoveredFreq.frequency} Hz: ${(hoveredFreq.magnitude * 100).toFixed(1)}%`
+          const textWidth = ctx.measureText(text).width
+          const padding = 6
+
+          let tooltipX = x + 10
+          let tooltipY = height / 2
+
+          // Edge cases handling
+          if (tooltipX + textWidth + padding * 2 > width) {
+            tooltipX = x - 10 - textWidth - padding * 2
+          }
+
+          // Tooltip box
+          ctx.fillStyle = "rgba(0, 0, 0, 0.8)"
+          ctx.beginPath()
+          ctx.roundRect(tooltipX, tooltipY - fontSize - padding, textWidth + padding * 2, fontSize + padding * 2, 4)
+          ctx.fill()
+
+          // Tooltip text
+          ctx.fillStyle = "white"
+          ctx.fillText(text, tooltipX + padding, tooltipY)
+        }
+      }
+    }
+
+    // Draw X-Axis Labels (Frequency in Hz)
+    const totalSpectrumWidth = width * zoom2D
+    const hzPerPixel = maxFreq / totalSpectrumWidth
+
+    // Draw Ticks every ~100px
+    const tickSpacing = 100
+    // Find the first tick position that is visible (x > 0)
+    // x = virtualX + pan2D
+    // We want x >= 0 => virtualX >= -pan2D
+
+    const startPixel = -pan2D
+    const startTickIndex = Math.floor(startPixel / tickSpacing)
+    const startX = startTickIndex * tickSpacing
+
+    ctx.textAlign = "center"
+    ctx.textBaseline = "bottom"
+    ctx.fillStyle = "#6b7280"
+
+    // Iterate pixels in screen space logic effectively
+    for (let virtualX = startX; virtualX < startPixel + width; virtualX += tickSpacing) {
+      const screenX = virtualX + pan2D
+
+      if (screenX >= -50 && screenX <= width + 50) {
+        const freq = virtualX * hzPerPixel
+        if (freq >= 0) {
+          ctx.fillText(`${freq.toFixed(0)}Hz`, screenX, height - 2)
+
+          ctx.strokeStyle = "#e9ecef"
+          ctx.beginPath()
+          ctx.moveTo(screenX, height)
+          ctx.lineTo(screenX, height - 5)
+          ctx.stroke()
+        }
+      }
+    }
+
+  }, [audioData, zoom2D, pan2D, hoveredFreq])
+
+  // 2D Interaction Handlers
+  useEffect(() => {
+    const canvas = spectrum2DCanvasRef.current
+    if (!canvas) return
+
+    let isDragging = false
+    let lastX = 0
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const zoomSensitivity = 0.001
+      const newZoom = Math.max(1, Math.min(20, zoom2D + e.deltaY * -zoomSensitivity))
+
+      // Try to zoom towards mouse position? Simplified: Center zoom for now or just standard zoom
+      // Better: Zoom relative to left for simplicity first, or improve if user asks.
+      // Let's just update scale.
+      setZoom2D(newZoom)
+    }
+
+    const handleMouseDown = (e: MouseEvent) => {
+      isDragging = true
+      lastX = e.clientX
+      canvas.style.cursor = "grabbing"
+    }
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect()
+      const x = e.clientX - rect.left
+
+      // Handle Hover
+      if (audioData?.analysisResults?.frequencySpectrum) {
+        const spectrum = audioData.analysisResults.frequencySpectrum
+        const barWidth = (canvas.width / spectrum.length) * zoom2D
+        const index = Math.floor((x - pan2D) / barWidth)
+
+        if (index >= 0 && index < spectrum.length) {
+          setHoveredFreq(spectrum[index])
+        } else {
+          setHoveredFreq(null)
+        }
+      }
+
+      // Handle Drag
+      if (isDragging) {
+        const deltaX = e.clientX - lastX
+        setPan2D(prev => {
+          const spectrum = audioData?.analysisResults?.frequencySpectrum || []
+          const totalWidth = (canvas.width / spectrum.length) * zoom2D * spectrum.length
+          // Limit pan?
+          // Allow some over-scroll but generally keep content in view
+          return prev + deltaX
+        })
+        lastX = e.clientX
+      }
+    }
+
+    const handleMouseUp = () => {
+      isDragging = false
+      canvas.style.cursor = "crosshair"
+    }
+
+    const handleMouseLeave = () => {
+      isDragging = false
+      setHoveredFreq(null)
+      canvas.style.cursor = "default"
+    }
+
+    canvas.addEventListener("wheel", handleWheel, { passive: false })
+    canvas.addEventListener("mousedown", handleMouseDown)
+    canvas.addEventListener("mousemove", handleMouseMove)
+    canvas.addEventListener("mouseup", handleMouseUp)
+    canvas.addEventListener("mouseleave", handleMouseLeave)
+
+    return () => {
+      canvas.removeEventListener("wheel", handleWheel)
+      canvas.removeEventListener("mousedown", handleMouseDown)
+      canvas.removeEventListener("mousemove", handleMouseMove)
+      canvas.removeEventListener("mouseup", handleMouseUp)
+      canvas.removeEventListener("mouseleave", handleMouseLeave)
+    }
+
+  }, [zoom2D, pan2D, audioData])
+
+  // Draw 2D spectrum when relevant state changes
+  useEffect(() => {
+    draw2DSpectrum()
+  }, [draw2DSpectrum])
 
   // Mouse interaction for 3D spectrum
   useEffect(() => {
@@ -370,10 +673,23 @@ export default function EnhancedAudioAnalysis({ audioData }: EnhancedAudioAnalys
     setPdfStage("Starting comprehensive PDF generation...")
 
     try {
+      // Capture Visuals from Shared Refs
+      const visuals = {
+        radarCanvas: props.visualRefs?.canvas2DRef?.current?.toDataURL("image/png"),
+        topographyCanvas: props.visualRefs?.canvas3DRef?.current?.toDataURL("image/png"),
+        oscilloscopeCanvas: props.visualRefs?.oscRef?.current?.toDataURL("image/png"),
+        spectrogramCanvas: props.visualRefs?.specRef?.current?.toDataURL("image/png"),
+        // Live Visualization captures
+        stftCanvas: props.visualRefs?.stftRef?.current?.toDataURL("image/png"),
+        fftCanvas: props.visualRefs?.fftRef?.current?.toDataURL("image/png"),
+        liveSpectrogramCanvas: props.visualRefs?.liveSpectrogramRef?.current?.toDataURL("image/png"),
+        energyCanvas: props.visualRefs?.energyRef?.current?.toDataURL("image/png"),
+      }
+
       await generatePDFReport(audioData, (progress, stage) => {
         setPdfProgress(progress)
         setPdfStage(stage)
-      })
+      }, visuals)
 
       setSaveStatus("✅ Enhanced PDF report generated successfully!")
       setPdfStage("PDF generation completed!")
@@ -744,6 +1060,13 @@ export default function EnhancedAudioAnalysis({ audioData }: EnhancedAudioAnalys
                 <Button onClick={() => setZoom3D(1)} variant="outline" size="sm">
                   Reset Zoom
                 </Button>
+                <Button
+                  onClick={() => setAutoRotate3D(!autoRotate3D)}
+                  variant={autoRotate3D ? "default" : "outline"}
+                  size="sm"
+                >
+                  {autoRotate3D ? "Stop Rotation" : "Auto Rotate"}
+                </Button>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
@@ -770,32 +1093,26 @@ export default function EnhancedAudioAnalysis({ audioData }: EnhancedAudioAnalys
           <CardTitle className="text-lg">Traditional Frequency Spectrum Analysis</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-64 bg-gray-100 rounded-lg flex items-end justify-center p-4">
-            <div className="flex items-end space-x-1 h-full w-full max-w-2xl">
-              {results?.frequencySpectrum && results.frequencySpectrum.length > 0 ? (
-                results.frequencySpectrum.slice(0, 50).map((point: any, index: number) => (
-                  <div
-                    key={index}
-                    className={`rounded-t ${isEnhanced ? "bg-blue-500" : "bg-purple-500"}`}
-                    style={{
-                      height: `${(point.magnitude || 0) * 100}%`,
-                      width: "100%",
-                      minHeight: "2px",
-                    }}
-                    title={`${point.frequency} Hz: ${((point.magnitude || 0) * 100).toFixed(1)}%`}
-                  />
-                ))
-              ) : (
-                <div className="flex items-center justify-center w-full h-full">
-                  <p className="text-gray-500">No frequency data available</p>
-                </div>
-              )}
+          <div className="relative w-full h-64 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+            <canvas
+              ref={spectrum2DCanvasRef}
+              width={800}
+              height={300}
+              className="w-full h-full cursor-crosshair"
+            />
+            <div className="absolute top-2 right-2 bg-white/80 p-2 rounded text-xs text-gray-600 shadow-sm pointer-events-none">
+              Scroll to Zoom • Drag to Pan
             </div>
           </div>
-          <p className="text-sm text-gray-600 mt-2 text-center">
-            Frequency range: 0 - {results?.frequencySpectrum?.[results.frequencySpectrum.length - 1]?.frequency || 0} Hz
-            {isEnhanced && <span className="text-blue-600 ml-2">• Enhanced Analysis</span>}
-          </p>
+          <div className="flex justify-between items-center mt-2">
+            <p className="text-sm text-gray-600">
+              Frequency range: 0 - {results?.frequencySpectrum?.[results.frequencySpectrum.length - 1]?.frequency || 0} Hz
+              {isEnhanced && <span className="text-blue-600 ml-2">• Enhanced Analysis</span>}
+            </p>
+            <div className="space-x-2">
+              <Button size="sm" variant="outline" onClick={() => { setZoom2D(1); setPan2D(0); }}>Reset View</Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

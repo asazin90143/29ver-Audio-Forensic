@@ -164,11 +164,24 @@ export async function POST(request: NextRequest) {
         "wind": audioUri
       };
 
+      // Generate Mock Frequency Spectrum
+      const frequencySpectrum = []
+      for (let i = 0; i < 50; i++) {
+        const freq = i * (20000 / 50)
+        const magnitude = Math.max(0.1, Math.sin(i * 0.2) * 0.5 + Math.random() * 0.3)
+        frequencySpectrum.push({
+          frequency: freq,
+          magnitude: magnitude,
+          time: Math.random() * 5
+        })
+      }
+
       return NextResponse.json({
         status: "Success",
         jobID: "simulation_mode",
         classification: mockClassification,
         stems: mockStems,
+        frequencySpectrum: frequencySpectrum,
         debug: ["Backend process failed/timed out.", "Switched to simulation mode for UI verification.", error.message]
       });
     } catch (fallbackError) {

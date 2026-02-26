@@ -17,9 +17,15 @@ interface AudioData {
 
 interface LiveVisualizationProps {
   audioData: AudioData
+  externalRefs?: {
+    stftRef?: React.RefObject<HTMLCanvasElement>
+    fftRef?: React.RefObject<HTMLCanvasElement>
+    liveSpectrogramRef?: React.RefObject<HTMLCanvasElement>
+    energyRef?: React.RefObject<HTMLCanvasElement>
+  }
 }
 
-export default function LiveVisualization({ audioData }: LiveVisualizationProps) {
+export default function LiveVisualization({ audioData, externalRefs }: LiveVisualizationProps) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [liveData, setLiveData] = useState<any>(null)
@@ -31,10 +37,16 @@ export default function LiveVisualization({ audioData }: LiveVisualizationProps)
   const [hoveredPoint, setHoveredPoint] = useState<any>(null)
 
   const audioRef = useRef<HTMLAudioElement>(null)
-  const stftCanvasRef = useRef<HTMLCanvasElement>(null)
-  const fftCanvasRef = useRef<HTMLCanvasElement>(null)
-  const spectrogramCanvasRef = useRef<HTMLCanvasElement>(null)
-  const energyCanvasRef = useRef<HTMLCanvasElement>(null)
+  // Use external refs if provided, otherwise fallback to local refs
+  const localStftRef = useRef<HTMLCanvasElement>(null)
+  const localFftRef = useRef<HTMLCanvasElement>(null)
+  const localSpectrogramRef = useRef<HTMLCanvasElement>(null)
+  const localEnergyRef = useRef<HTMLCanvasElement>(null)
+
+  const stftCanvasRef = externalRefs?.stftRef || localStftRef
+  const fftCanvasRef = externalRefs?.fftRef || localFftRef
+  const spectrogramCanvasRef = externalRefs?.liveSpectrogramRef || localSpectrogramRef
+  const energyCanvasRef = externalRefs?.energyRef || localEnergyRef
   const animationRef = useRef<number>()
 
   // Initialize audio context and analyzer
@@ -67,8 +79,8 @@ export default function LiveVisualization({ audioData }: LiveVisualizationProps)
       let source: MediaElementAudioSourceNode
       try {
         source = audioContext.createMediaElementSource(audioRef.current)
-        // Store reference to prevent multiple connections
-        ;(audioRef.current as any).audioContext = audioContext
+          // Store reference to prevent multiple connections
+          ; (audioRef.current as any).audioContext = audioContext
       } catch (sourceError) {
         console.warn("MediaElementSource creation failed, using mock data:", sourceError)
         audioContext.close()
