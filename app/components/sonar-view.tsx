@@ -809,15 +809,27 @@ export default function SonarView({
               const isActive = Math.abs(currentTime - (ev.time || 0)) < 0.3;
               const db = Number(ev.decibels || -60).toFixed(1);
               const confidence = ((ev.confidence || 0) * 100).toFixed(0);
-              // Estimate distance: -10db = 10m, -90db = 90m (Linear approx for viz)
               const distance = Math.abs(Number(db)).toFixed(1);
+
+              // Category-based colors for Signal Matrix
+              const catColorMap: Record<string, string> = {
+                "Human Voice": "blue", "Male Voice": "blue", "Female Voice": "blue",
+                "Musical Content": "purple", "Vehicle Sound": "orange", "Footsteps": "yellow",
+                "Animal Signal": "green", "Atmospheric Wind": "cyan",
+                "Gunshot / Explosion": "red", "Scream / Aggression": "red",
+                "Siren / Alarm": "rose", "Impact / Breach": "fuchsia",
+                "Silence": "gray", "Water / Liquid": "sky",
+                "Electronic Signal": "violet", "Tools / Machinery": "stone",
+                "Domestic Sound": "neutral", "Crowd / Public": "amber",
+              };
+              const catColor = catColorMap[ev.type] || "blue";
 
               return (
                 <div
                   key={i}
                   onClick={() => jumpToTime(ev.time)}
                   className={`relative flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all border-l-2 bg-slate-900/40 group hover:bg-slate-800 ${isActive
-                    ? `border-l-4 shadow-[0_0_20px_rgba(0,0,0,0.5)] scale-[1.02] z-10 ${ev.speaker === 'SPEAKER_01' ? 'border-red-500 bg-red-950/20' : 'border-blue-500 bg-blue-950/20'}`
+                    ? `border-l-4 shadow-[0_0_20px_rgba(0,0,0,0.5)] scale-[1.02] z-10 border-${catColor}-500 bg-${catColor}-950/20`
                     : 'border-transparent opacity-70 hover:opacity-100'
                     }`}
                 >
@@ -826,7 +838,7 @@ export default function SonarView({
                       <div className={`w-2 h-2 rounded-sm ${isActive ? "bg-current animate-ping" : "bg-slate-600"}`} />
                       <span className={`text-[10px] tabular-nums font-mono ${isActive ? "text-white font-bold" : "text-slate-500"}`}>{Number(ev?.time || 0).toFixed(3)}s</span>
                     </div>
-                    <span className={`text-[12px] font-black uppercase tracking-widest mt-1 ${ev.speaker === 'SPEAKER_01' ? 'text-red-400' : 'text-blue-400'}`}>
+                    <span className={`text-[12px] font-black uppercase tracking-widest mt-1 text-${catColor}-400`}>
                       {(ev.type || "SIGNAL").toUpperCase()}
                     </span>
                     <div className="flex gap-2 mt-1">
