@@ -178,17 +178,23 @@ def separate_audio(input_path, output_dir, job_id, classification_path=None):
                 log(f"Loaded audio. Sample rate: {sr}, Shape: {audio_data.shape}")
                 
                 # Prepare empty containers (silence)
+                # Prepare stem containers for ALL forensic categories
                 stems_to_generate = {
-                    "vocals": "Human Voice",
-                    "background": "Musical Content",
-                    "vehicles": "Vehicle Sound",
-                    "footsteps": "Footsteps",
-                    "animals": "Animal Signal",
-                    "wind": "Atmospheric Wind",
-                    "gunshots": "Gunshot / Explosion",
-                    "screams": "Scream / Aggression",
-                    "sirens": "Siren / Alarm",
-                    "impact": "Impact / Breach"
+                    "vocals": ["Human Voice", "Male Voice", "Female Voice"],
+                    "background": ["Musical Content"],
+                    "vehicles": ["Vehicle Sound"],
+                    "footsteps": ["Footsteps"],
+                    "animals": ["Animal Signal"],
+                    "wind": ["Atmospheric Wind"],
+                    "gunshots": ["Gunshot / Explosion"],
+                    "screams": ["Scream / Aggression"],
+                    "sirens": ["Siren / Alarm"],
+                    "impact": ["Impact / Breach"],
+                    "water": ["Water / Liquid"],
+                    "electronic": ["Electronic Signal"],
+                    "tools": ["Tools / Machinery"],
+                    "domestic": ["Domestic Sound"],
+                    "crowd": ["Crowd / Public"],
                 }
                 
                 # Check what we already have from Demucs
@@ -204,15 +210,23 @@ def separate_audio(input_path, output_dir, job_id, classification_path=None):
                 events = classification_data.get("soundEvents", [])
                 log(f"Found {len(events)} sound events.")
                 
-                CLIP_DURATION = 0.975
+                # Use a longer clip duration for better separation
+                CLIP_DURATION = 2.0
                 
                 count_generated = 0
                 for event in events:
                     etype = event.get("type", "")
+                    confidence = float(event.get("confidence", 0))
                     target_stem = None
-                    for stem_key, trigger_word in stems_to_generate.items():
-                        if trigger_word.lower() == etype.lower():
-                            target_stem = stem_key
+                    
+                    # Case-insensitive substring matching against category lists
+                    etype_lower = etype.lower()
+                    for stem_key, trigger_words in stems_to_generate.items():
+                        for trigger in trigger_words:
+                            if trigger.lower() in etype_lower or etype_lower in trigger.lower():
+                                target_stem = stem_key
+                                break
+                        if target_stem:
                             break
                     
                     if target_stem:
@@ -230,8 +244,17 @@ def separate_audio(input_path, output_dir, job_id, classification_path=None):
                         end_idx = min(len(audio_data), end_idx)
                         
                         if start_idx < end_idx:
-                            generated_audio[target_stem][start_idx:end_idx] = audio_data[start_idx:end_idx]
+                            # Scale audio segment by confidence for more accurate representation
+                            scale = min(1.0, max(0.3, confidence))
+                            segment = audio_data[start_idx:end_idx]
+                            generated_audio[target_stem][start_idx:end_idx] = (
+                                np.maximum(
+                                    generated_audio[target_stem][start_idx:end_idx],
+                                    (segment * scale).astype(audio_data.dtype)
+                                )
+                            )
                             count_generated += 1
+
 
                 log(f"Processed {count_generated} event segments matches.")
 

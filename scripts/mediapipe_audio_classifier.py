@@ -12,58 +12,16 @@ from scipy.io import wavfile
 warnings.filterwarnings("ignore")
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
+# Use the shared forensic category mapping
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from forensic_categories import map_to_forensic_category
+
 def get_yamnet_model_path():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     model_path = os.path.join(script_dir, 'yamnet.tflite')
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"YAMNet model missing at {model_path}")
     return model_path
-
-def map_to_forensic_category(mediapipe_category):
-    mapping = {
-        "Speech": "Human Voice",
-        "Singing": "Human Voice",
-        "Male speech": "Male Voice",
-        "Female speech": "Female Voice",
-        "Music": "Musical Content",
-        "Vehicle": "Vehicle Sound",
-        "Car": "Vehicle Sound",
-        "Bus": "Vehicle Sound",
-        "Truck": "Vehicle Sound",
-        "Motorcycle": "Vehicle Sound",
-        "Footsteps": "Footsteps",
-        "Animal": "Animal Signal",
-        "Dog": "Animal Signal",
-        "Cat": "Animal Signal",
-        "Bird": "Animal Signal",
-        "Wind": "Atmospheric Wind",
-        "Thunder": "Atmospheric Wind",
-        "Breeze": "Atmospheric Wind",
-        "Silence": "Silence",
-        # NEW FORENSIC CATEGORIES
-        "Gunshot": "Gunshot / Explosion",
-        "Explosion": "Gunshot / Explosion",
-        "Cap gun": "Gunshot / Explosion",
-        "Fusillade": "Gunshot / Explosion",
-        "Artillery": "Gunshot / Explosion",
-        "Screaming": "Scream / Aggression",
-        "Shout": "Scream / Aggression",
-        "Yell": "Scream / Aggression",
-        "Siren": "Siren / Alarm",
-        "Alarm": "Siren / Alarm",
-        "Buzzer": "Siren / Alarm",
-        "Glass": "Impact / Breach",
-        "Shatter": "Impact / Breach",
-        "Smash": "Impact / Breach",
-        "Hammer": "Impact / Breach",
-        "Door": "Impact / Breach",
-        "Knock": "Impact / Breach",
-        "Slam": "Impact / Breach"
-    }
-    for key, value in mapping.items():
-        if key.lower() in mediapipe_category.lower():
-            return value
-    return mediapipe_category
 
 def convert_to_wav(input_path):
     """
