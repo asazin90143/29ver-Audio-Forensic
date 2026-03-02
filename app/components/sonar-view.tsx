@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import WaveSurfer from "wavesurfer.js"
 import {
   Target, Play, Pause, Layers, Activity,
-  FileText, ChevronRight, Scissors, Loader2,
+  FileText, ChevronRight, Scissors, Loader2, Trash2,
   Download, Mic2, Wind, Database, Bird, Car, Footprints, AudioWaveform,
   Waves, Volume2, VolumeX, Bomb, Hammer, AlertTriangle, Megaphone, Zap
 } from "lucide-react"
@@ -774,6 +774,19 @@ export default function SonarView({
             ) : (
               <><Scissors className="mr-3" /> DECONSTRUCT AUDIO</>
             )}
+          </Button>
+          <Button
+            onClick={() => {
+              if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; }
+              setIsPlaying(false);
+              setCurrentTime(0);
+              if (setAudioData) setAudioData(null);
+              if (setCurrentStems) setCurrentStems(null);
+              if (setShowStems) setShowStems(false);
+            }}
+            className="bg-red-600 hover:bg-red-500 font-bold h-20 px-8 rounded-xl transition-all shadow-[0_0_20px_rgba(239,68,68,0.3)]"
+          >
+            <Trash2 className="mr-3" /> CLEAR AUDIO
           </Button>
           <div className="flex items-center gap-4 bg-slate-900/80 p-3 rounded-2xl border border-slate-700">
             <audio ref={audioRef} src={audioData?.url} onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)} />

@@ -178,79 +178,89 @@ def separate_audio(input_path, output_dir, job_id, classification_path=None):
                 log(f"Loaded audio. Sample rate: {sr}, Shape: {audio_data.shape}")
                 
                 # =========================================================
-                # FREQUENCY-DOMAIN SEPARATION
-                # Each category has a specific frequency band.
-                # We apply bandpass filters so each stem sounds DIFFERENT.
+                # FREQUENCY-DOMAIN SEPARATION (V2)
+                # 1. Convert stereo to mono (fixes sosfiltfilt axis bug)
+                # 2. Pre-filter ENTIRE audio per stem band ONCE
+                # 3. Time-gate using classification events with fades
+                # This ensures each stem sounds genuinely DIFFERENT.
                 # =========================================================
                 from scipy.signal import butter, sosfiltfilt
 
-                def bandpass_filter(data, lowcut, highcut, fs, order=4):
-                    """Apply a bandpass filter to isolate a frequency range."""
+                def bandpass_filter(data, lowcut, highcut, fs, order=5):
+                    """Apply a bandpass filter to a 1D mono signal."""
                     nyq = fs / 2.0
                     low = max(lowcut / nyq, 0.001)
                     high = min(highcut / nyq, 0.999)
                     if low >= high:
                         return data
                     sos = butter(order, [low, high], btype='band', output='sos')
-                    if len(data) < 30:
+                    if len(data) < 50:
                         return data
-                    return sosfiltfilt(sos, data.astype(np.float64)).astype(data.dtype)
+                    return sosfiltfilt(sos, data)
 
-                def lowpass_filter(data, cutoff, fs, order=4):
-                    """Apply a lowpass filter."""
-                    nyq = fs / 2.0
-                    freq = min(cutoff / nyq, 0.999)
-                    sos = butter(order, freq, btype='low', output='sos')
-                    if len(data) < 30:
-                        return data
-                    return sosfiltfilt(sos, data.astype(np.float64)).astype(data.dtype)
+                # Convert stereo to mono FIRST (critical fix)
+                if audio_data.dtype == np.int16:
+                    audio_mono = audio_data.astype(np.float64) / 32768.0
+                elif audio_data.dtype == np.int32:
+                    audio_mono = audio_data.astype(np.float64) / 2147483648.0
+                else:
+                    audio_mono = audio_data.astype(np.float64)
 
-                def highpass_filter(data, cutoff, fs, order=4):
-                    """Apply a highpass filter."""
-                    nyq = fs / 2.0
-                    freq = max(cutoff / nyq, 0.001)
-                    sos = butter(order, freq, btype='high', output='sos')
-                    if len(data) < 30:
-                        return data
-                    return sosfiltfilt(sos, data.astype(np.float64)).astype(data.dtype)
+                if len(audio_mono.shape) > 1:
+                    audio_mono = np.mean(audio_mono, axis=1)  # Stereo -> Mono
+
+                total_samples = len(audio_mono)
+                log(f"Audio: {total_samples} samples, {sr}Hz, mono")
 
                 # Stem config: categories, frequency band [low_hz, high_hz]
                 stems_config = {
-                    "vocals":     {"cats": ["Human Voice", "Male Voice", "Female Voice"], "band": [300, 3500]},
-                    "background": {"cats": ["Musical Content"], "band": [80, 12000]},
-                    "vehicles":   {"cats": ["Vehicle Sound"], "band": [20, 500]},
-                    "footsteps":  {"cats": ["Footsteps"], "band": [20, 300]},
-                    "animals":    {"cats": ["Animal Signal"], "band": [800, 8000]},
-                    "wind":       {"cats": ["Atmospheric Wind"], "band": [20, 800]},
-                    "gunshots":   {"cats": ["Gunshot / Explosion"], "band": [30, 15000]},
-                    "screams":    {"cats": ["Scream / Aggression"], "band": [500, 5000]},
-                    "sirens":     {"cats": ["Siren / Alarm"], "band": [500, 2000]},
-                    "impact":     {"cats": ["Impact / Breach"], "band": [30, 4000]},
-                    "water":      {"cats": ["Water / Liquid"], "band": [200, 6000]},
-                    "electronic": {"cats": ["Electronic Signal"], "band": [1000, 8000]},
-                    "tools":      {"cats": ["Tools / Machinery"], "band": [100, 6000]},
+                    "vocals":     {"cats": ["Human Voice", "Male Voice", "Female Voice"], "band": [250, 4000]},
+                    "background": {"cats": ["Musical Content"], "band": [80, 14000]},
+                    "vehicles":   {"cats": ["Vehicle Sound"], "band": [20, 400]},
+                    "footsteps":  {"cats": ["Footsteps"], "band": [20, 250]},
+                    "animals":    {"cats": ["Animal Signal"], "band": [1000, 10000]},
+                    "wind":       {"cats": ["Atmospheric Wind"], "band": [15, 600]},
+                    "gunshots":   {"cats": ["Gunshot / Explosion"], "band": [30, 16000]},
+                    "screams":    {"cats": ["Scream / Aggression"], "band": [600, 6000]},
+                    "sirens":     {"cats": ["Siren / Alarm"], "band": [400, 1800]},
+                    "impact":     {"cats": ["Impact / Breach"], "band": [30, 3000]},
+                    "water":      {"cats": ["Water / Liquid"], "band": [300, 8000]},
+                    "electronic": {"cats": ["Electronic Signal"], "band": [1500, 10000]},
+                    "tools":      {"cats": ["Tools / Machinery"], "band": [80, 5000]},
                     "domestic":   {"cats": ["Domestic Sound"], "band": [200, 8000]},
-                    "crowd":      {"cats": ["Crowd / Public"], "band": [200, 4000]},
+                    "crowd":      {"cats": ["Crowd / Public"], "band": [200, 3500]},
                 }
 
-                # Check what we already have from Demucs
                 has_demucs_vocals = "vocals" in final_stems
                 has_demucs_background = "background" in final_stems
-
-                # Convert to float for filtering
-                if audio_data.dtype == np.int16:
-                    audio_float = audio_data.astype(np.float64) / 32768.0
-                elif audio_data.dtype == np.int32:
-                    audio_float = audio_data.astype(np.float64) / 2147483648.0
-                else:
-                    audio_float = audio_data.astype(np.float64)
-
-                generated_audio = { key: np.zeros_like(audio_float) for key in stems_config }
 
                 events = classification_data.get("soundEvents", [])
                 log(f"Found {len(events)} sound events.")
 
-                CLIP_DURATION = 2.0
+                # ---- STEP 1: Pre-filter entire audio per stem ----
+                # This is done ONCE so each stem has its unique frequency character
+                log("Pre-filtering audio for each frequency band...")
+                pre_filtered = {}
+                for stem_key, cfg in stems_config.items():
+                    if stem_key == "vocals" and has_demucs_vocals:
+                        continue
+                    if stem_key == "background" and has_demucs_background:
+                        continue
+                    band = cfg["band"]
+                    try:
+                        pre_filtered[stem_key] = bandpass_filter(audio_mono, band[0], band[1], sr)
+                        log(f"  {stem_key}: {band[0]}-{band[1]}Hz OK")
+                    except Exception as e:
+                        log(f"  {stem_key}: filter failed: {e}")
+                        pre_filtered[stem_key] = audio_mono.copy()
+
+                # ---- STEP 2: Time-gate using classification events ----
+                # For each stem, create an envelope mask based on when that
+                # category was detected. Only those time regions are kept.
+                CLIP_DURATION = 2.5  # seconds per event window
+                FADE_SAMPLES = int(0.05 * sr)  # 50ms fade-in/out
+
+                generated_audio = { key: np.zeros(total_samples) for key in pre_filtered }
                 count_generated = 0
 
                 for event in events:
@@ -267,29 +277,28 @@ def separate_audio(input_path, output_dir, job_id, classification_path=None):
                         if target_stem:
                             break
 
-                    if target_stem:
-                        if target_stem == "vocals" and has_demucs_vocals:
-                            continue
-                        if target_stem == "background" and has_demucs_background:
-                            continue
-
+                    if target_stem and target_stem in pre_filtered:
                         start_time = float(event.get("time", 0))
                         end_time = start_time + CLIP_DURATION
                         start_idx = max(0, int(start_time * sr))
-                        end_idx = min(len(audio_float), int(end_time * sr))
+                        end_idx = min(total_samples, int(end_time * sr))
+                        seg_len = end_idx - start_idx
 
-                        if start_idx < end_idx and (end_idx - start_idx) > 30:
-                            segment = audio_float[start_idx:end_idx]
-                            band = stems_config[target_stem]["band"]
+                        if seg_len > FADE_SAMPLES * 2:
+                            # Create a smooth envelope (fade in/out to avoid clicks)
+                            envelope = np.ones(seg_len)
+                            fade_len = min(FADE_SAMPLES, seg_len // 4)
+                            envelope[:fade_len] = np.linspace(0, 1, fade_len)
+                            envelope[-fade_len:] = np.linspace(1, 0, fade_len)
 
-                            # Apply bandpass filter to isolate the relevant frequencies
-                            filtered = bandpass_filter(segment, band[0], band[1], sr)
-
+                            # Scale by confidence
                             scale = min(1.0, max(0.3, confidence))
-                            filtered_scaled = filtered * scale
 
-                            # Accumulate (add, don't overwrite) for overlapping events
-                            generated_audio[target_stem][start_idx:end_idx] += filtered_scaled
+                            # Apply: pre-filtered audio * envelope * confidence
+                            generated_audio[target_stem][start_idx:end_idx] = np.maximum(
+                                generated_audio[target_stem][start_idx:end_idx],
+                                pre_filtered[target_stem][start_idx:end_idx] * envelope * scale
+                            )
                             count_generated += 1
 
 
