@@ -344,16 +344,52 @@ export default function SonarView({
     // Detect Hover
     let foundHover: any = null;
 
-    // Draw Events — bigger dots with glow
-    activeEvents.forEach((ev: any) => {
-      const duration = audioData?.analysisResults?.duration || 1;
-      const normalizedTime = (ev.time || 0) / duration;
-      const a = normalizedTime * Math.PI * 2 - Math.PI / 2;
+    // Category color and angle mapping for scatter visualization
+    const categoryConfig: Record<string, { color: string; baseAngle: number }> = {
+      "Human Voice": { color: "#3b82f6", baseAngle: 0 },
+      "Male Voice": { color: "#2563eb", baseAngle: 15 },
+      "Female Voice": { color: "#60a5fa", baseAngle: -15 },
+      "Musical Content": { color: "#a855f7", baseAngle: 45 },
+      "Vehicle Sound": { color: "#f97316", baseAngle: 90 },
+      "Footsteps": { color: "#eab308", baseAngle: 135 },
+      "Animal Signal": { color: "#22c55e", baseAngle: 180 },
+      "Atmospheric Wind": { color: "#06b6d4", baseAngle: 225 },
+      "Gunshot / Explosion": { color: "#ef4444", baseAngle: 270 },
+      "Scream / Aggression": { color: "#dc2626", baseAngle: 285 },
+      "Siren / Alarm": { color: "#f43f5e", baseAngle: 300 },
+      "Impact / Breach": { color: "#d946ef", baseAngle: 315 },
+      "Silence": { color: "#6b7280", baseAngle: 160 },
+      "Water / Liquid": { color: "#0ea5e9", baseAngle: 200 },
+      "Electronic Signal": { color: "#8b5cf6", baseAngle: 350 },
+      "Tools / Machinery": { color: "#78716c", baseAngle: 120 },
+      "Domestic Sound": { color: "#a3a3a3", baseAngle: 250 },
+      "Crowd / Public": { color: "#fbbf24", baseAngle: 70 },
+    };
 
-      const db = Number(ev.decibels || -60);
-      const normalizedDb = Math.max(0, Math.min(1, (db + 90) / 90));
-      const radiusFactor = 1.0 - normalizedDb;
-      const d = (radiusFactor * maxR * 0.9) + (maxR * 0.1);
+    // Track how many events per category (for spreading within zone)
+    const categoryCount: Record<string, number> = {};
+
+    // Draw Events — scattered by category
+    activeEvents.forEach((ev: any, evIndex: number) => {
+      const cat = ev.type || "Unknown";
+      const config = categoryConfig[cat] || { color: "#6366f1", baseAngle: (evIndex * 37) % 360 };
+
+      // Count events per category for spread
+      categoryCount[cat] = (categoryCount[cat] || 0) + 1;
+      const catIdx = categoryCount[cat];
+
+      // Angle: category base angle + spread within zone (±15°)
+      const spreadAngle = (catIdx % 5) * 6 - 12; // -12, -6, 0, 6, 12
+      const jitter = ((evIndex * 7 + catIdx * 13) % 10 - 5) * 1.5; // Small random-ish jitter
+      const angleDeg = config.baseAngle + spreadAngle + jitter;
+      const a = (angleDeg * Math.PI) / 180 - Math.PI / 2;
+
+      // Distance: based on confidence (higher confidence = closer to center)
+      const confidence = ev.confidence || 0.5;
+      const radiusFactor = 1.0 - Math.max(0.1, Math.min(0.95, confidence));
+      // Add slight variation based on event index to avoid overlap
+      const variation = ((evIndex * 17) % 10 - 5) * 0.02;
+      const d = (radiusFactor + variation) * maxR * 0.85 + maxR * 0.08;
 
       const x = cx + Math.cos(a) * d;
       const y = cy + Math.sin(a) * d;
@@ -364,7 +400,7 @@ export default function SonarView({
       const isHovered = distToMouse < 15;
       if (isHovered) foundHover = ev;
 
-      const baseColor = ev.speaker === "SPEAKER_01" ? "#ef4444" : "#3b82f6";
+      const baseColor = config.color;
       const color = isActive ? "#ffffff" : baseColor;
 
       // Always draw a subtle glow ring around each event
@@ -417,6 +453,7 @@ export default function SonarView({
         ctx.fillText(`${ev.type || "SIGNAL"}`, x + 14, y);
         ctx.fillStyle = "rgba(255,255,255,0.7)";
         ctx.font = "10px monospace";
+        const db = Number(ev.decibels || -60);
         ctx.fillText(`${Math.abs(db).toFixed(0)}dB | ${((ev.confidence || 0) * 100).toFixed(0)}%`, x + 14, y + 12);
       }
     });
@@ -583,7 +620,18 @@ export default function SonarView({
       }
       const isSelected = hoveredVoxel && hoveredVoxel === ev;
 
-      const baseColor = ev.speaker === 'SPEAKER_01' ? '#ef4444' : '#3b82f6'; // Red vs Blue
+      // Category-based colors (same as 2D sonar)
+      const catColors: Record<string, string> = {
+        "Human Voice": "#3b82f6", "Male Voice": "#2563eb", "Female Voice": "#60a5fa",
+        "Musical Content": "#a855f7", "Vehicle Sound": "#f97316", "Footsteps": "#eab308",
+        "Animal Signal": "#22c55e", "Atmospheric Wind": "#06b6d4",
+        "Gunshot / Explosion": "#ef4444", "Scream / Aggression": "#dc2626",
+        "Siren / Alarm": "#f43f5e", "Impact / Breach": "#d946ef",
+        "Silence": "#6b7280", "Water / Liquid": "#0ea5e9",
+        "Electronic Signal": "#8b5cf6", "Tools / Machinery": "#78716c",
+        "Domestic Sound": "#a3a3a3", "Crowd / Public": "#fbbf24",
+      };
+      const baseColor = catColors[ev.type] || '#6366f1';
 
       // Calculate Opacity based on Z-Distance (Fog)
       // zIndex ranges roughly -200 to 200. Far away (200) should be faded.

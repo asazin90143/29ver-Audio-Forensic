@@ -95,7 +95,7 @@ def classify_audio(audio_path, job_id):
             
             events = []
             for idx, res in enumerate(results):
-                if res.classifications:
+                if res.classifications and res.classifications[0].categories:
                     top = res.classifications[0].categories[0]
                     forensic_cat = map_to_forensic_category(top.category_name)
                     confidence = round(top.score, 4)
