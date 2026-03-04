@@ -1,0 +1,98 @@
+Server/live_audio_analysis.py:4:1: F401 'json' imported but unused
+Server/live_audio_analysis.py:7:1: F401 'torch' imported but unused
+Server/live_audio_analysis.py:8:1: F401 'torchaudio' imported but unused
+Server/live_audio_analysis.py:11:1: F401 'shutil' imported but unused
+Server/live_audio_analysis.py:13:1: E302 expected 2 blank lines, found 1
+Server/live_audio_analysis.py:13:80: E501 line too long (97 > 79 characters)
+Server/live_audio_analysis.py:15:80: E501 line too long (82 > 79 characters)
+Server/live_audio_analysis.py:23:80: E501 line too long (83 > 79 characters)
+Server/live_audio_analysis.py:30:80: E501 line too long (89 > 79 characters)
+Server/live_audio_analysis.py:71:80: E501 line too long (83 > 79 characters)
+Server/live_audio_analysis.py:87:29: W291 trailing whitespace
+Server/live_audio_analysis.py:92:60: W292 no newline at end of file
+Server/run_yamnet.py:13:1: E302 expected 2 blank lines, found 1
+Server/run_yamnet.py:16:80: E501 line too long (85 > 79 characters)
+Server/run_yamnet.py:22:1: E302 expected 2 blank lines, found 1
+Server/run_yamnet.py:39:80: E501 line too long (84 > 79 characters)
+Server/run_yamnet.py:49:1: E302 expected 2 blank lines, found 1
+Server/run_yamnet.py:58:80: E501 line too long (92 > 79 characters)
+Server/run_yamnet.py:80:1: E305 expected 2 blank lines after class or function definition, found 1
+Server/separator_service.py:2:1: F401 'os' imported but unused
+Server/separator_service.py:4:1: E302 expected 2 blank lines, found 1
+Server/separator_service.py:6:55: W291 trailing whitespace
+Server/separator_service.py:19:1: W293 blank line contains whitespace
+Server/separator_service.py:22:1: W293 blank line contains whitespace
+Server/separator_service.py:26:1: W293 blank line contains whitespace
+Server/separator_service.py:31:21: W292 no newline at end of file
+Server/server.py:9:36: W291 trailing whitespace
+Server/server.py:18:25: W291 trailing whitespace
+Server/server.py:34:1: E302 expected 2 blank lines, found 1
+Server/server.py:43:80: E501 line too long (89 > 79 characters)
+Server/server.py:49:1: W293 blank line contains whitespace
+Server/server.py:52:1: W293 blank line contains whitespace
+Server/server.py:57:60: E261 at least two spaces before inline comment
+Server/server.py:57:80: E501 line too long (83 > 79 characters)
+Server/server.py:63:1: W293 blank line contains whitespace
+Server/server.py:68:70: W292 no newline at end of file
+app.py:5:1: E302 expected 2 blank lines, found 1
+app.py:9:1: E305 expected 2 blank lines after class or function definition, found 1
+batch_process_dataset.py:8:1: F401 'pathlib.Path' imported but unused
+batch_process_dataset.py:12:80: E501 line too long (84 > 79 characters)
+batch_process_dataset.py:21:80: E501 line too long (88 > 79 characters)
+batch_process_dataset.py:29:80: E501 line too long (97 > 79 characters)
+batch_process_dataset.py:39:1: E302 expected 2 blank lines, found 1
+batch_process_dataset.py:44:80: E501 line too long (80 > 79 characters)
+batch_process_dataset.py:45:1: W293 blank line contains whitespace
+batch_process_dataset.py:56:21: E722 do not use bare 'except'
+batch_process_dataset.py:58:80: E501 line too long (102 > 79 characters)
+batch_process_dataset.py:59:1: W293 blank line contains whitespace
+batch_process_dataset.py:65:1: E302 expected 2 blank lines, found 1
+batch_process_dataset.py:69:1: W293 blank line contains whitespace
+batch_process_dataset.py:75:1: W293 blank line contains whitespace
+batch_process_dataset.py:76:80: E501 line too long (87 > 79 characters)
+batch_process_dataset.py:78:1: W293 blank line contains whitespace
+batch_process_dataset.py:87:80: E501 line too long (85 > 79 characters)
+batch_process_dataset.py:89:14: E111 indentation is not a multiple of 4
+batch_process_dataset.py:89:14: E117 over-indented
+batch_process_dataset.py:90:1: W293 blank line contains whitespace
+batch_process_dataset.py:94:1: E302 expected 2 blank lines, found 1
+batch_process_dataset.py:101:1: W293 blank line contains whitespace
+batch_process_dataset.py:103:1: W293 blank line contains whitespace
+batch_process_dataset.py:112:1: W293 blank line contains whitespace
+batch_process_dataset.py:114:1: W293 blank line contains whitespace
+batch_process_dataset.py:121:1: W293 blank line contains whitespace
+batch_process_dataset.py:124:80: E501 line too long (92 > 79 characters)
+batch_process_dataset.py:125:1: W293 blank line contains whitespace
+batch_process_dataset.py:127:80: E501 line too long (93 > 79 characters)
+batch_process_dataset.py:128:1: W293 blank line contains whitespace
+batch_process_dataset.py:130:1: W293 blank line contains whitespace
+batch_process_dataset.py:132:1: W293 blank line contains whitespace
+batch_process_dataset.py:136:1: W293 blank line contains whitespace
+batch_process_dataset.py:137:80: E501 line too long (95 > 79 characters)
+batch_process_dataset.py:138:1: W293 blank line contains whitespace
+batch_process_dataset.py:145:1: W293 blank line contains whitespace
+batch_process_dataset.py:147:1: W293 blank line contains whitespace
+batch_process_dataset.py:151:1: W293 blank line contains whitespace
+batch_process_dataset.py:155:1: W293 blank line contains whitespace
+batch_process_dataset.py:161:80: E501 line too long (98 > 79 characters)
+batch_process_dataset.py:164:1: W293 blank line contains whitespace
+batch_process_dataset.py:170:1: W293 blank line contains whitespace
+batch_process_dataset.py:179:1: W293 blank line contains whitespace
+batch_process_dataset.py:182:1: W293 blank line contains whitespace
+batch_process_dataset.py:200:1: W293 blank line contains whitespace
+batch_process_dataset.py:212:1: W293 blank line contains whitespace
+batch_process_dataset.py:222:1: W293 blank line contains whitespace
+batch_process_dataset.py:231:1: W293 blank line contains whitespace
+batch_process_dataset.py:234:80: E501 line too long (114 > 79 characters)
+batch_process_dataset.py:235:1: W293 blank line contains whitespace
+batch_process_dataset.py:237:80: E501 line too long (87 > 79 characters)
+batch_process_dataset.py:239:1: E305 expected 2 blank lines after class or function definition, found 1
+batch_process_dataset.py:243:80: E501 line too long (82 > 79 characters)
+debug_engine.py:5:1: E302 expected 2 blank lines, found 1
+debug_engine.py:7:1: W293 blank line contains whitespace
+debug_engine.py:13:9: F401 'demucs' imported but unused
+debug_engine.py:21:80: E501 line too long (93 > 79 characters)
+debug_engine.py:28:80: E501 line too long (80 > 79 characters)
+debug_engine.py:33:15: F541 f-string is missing placeholders
+debug_engine.py:39:1: E305 expected 2 blank lines after class or function definition, found 1
+debug_engine.py:40:19: W292 no newline at end of file

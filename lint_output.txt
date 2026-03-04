@@ -1,0 +1,1 @@
+Invalid project directory provided, no such directory: C:\Users\picha\OneDrive\Desktop\CODES\29ver-Audio-Forensic\lint

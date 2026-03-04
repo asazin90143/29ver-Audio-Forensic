@@ -1,0 +1,43 @@
+
+> my-thesis-project@0.1.0 build
+> next build
+
+⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of C:\Users\picha\package-lock.json as the root directory.
+ To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+ Detected additional lockfiles: 
+   * C:\Users\picha\OneDrive\Desktop\CODES\29ver-Audio-Forensic\package-lock.json
+
+▲ Next.js 16.1.6 (Turbopack)
+- Environments: .env
+- Experiments (use with caution):
+  · serverActions
+
+  Creating an optimized production build ...
+
+> Build error occurred
+Error: Turbopack build failed with 1 errors:
+./OneDrive/Desktop/CODES/29ver-Audio-Forensic/app/globals.css:2459:20
+Parsing CSS source code failed
+[0m [90m 2457 |[39m }
+ [90m 2458 |[39m [33m.[39m[37m[41m[1m\[22m[49m[39m[[33m--[39mcell[33m-[39msize[37m[41m[1m\[22m[49m[39m[33m:[39m[33m--[39mspacing[37m[41m[1m\[22m[49m[39m([35m8[39m[37m[41m[1m\[22m[49m[39m)[37m[41m[1m\[22m[49m[39m] {
+[31m[1m>[22m[39m[90m 2459 |[39m   [33m--[39mcell[33m-[39msize[33m:[39m [36mvar[39m([33m--[39mspacing([35m8[39m))[33m;[39m
+ [90m      |[39m                    [31m[1m^[22m[39m
+ [90m 2460 |[39m }
+ [90m 2461 |[39m [33m.[39mselection[37m[41m[1m\[22m[49m[39m[33m:[39mbg[33m-[39mpurple[33m-[39m[35m500[39m[37m[41m[1m\[22m[49m[39m[33m/[39m[35m30[39m [33m*[39m[33m:[39m[33m:[39mselection {
+ [90m 2462 |[39m   background[33m-[39mcolor[33m:[39m rgb([35m168[39m [35m85[39m [35m247[39m [33m/[39m [35m0.3[39m)[33m;[39m[0m
+
+Unexpected token Function("--spacing")
+
+Import traces:
+  App Route:
+    ./OneDrive/Desktop/CODES/29ver-Audio-Forensic/app/globals.css
+    ./OneDrive/Desktop/CODES/29ver-Audio-Forensic/app/api/classify-audio/forensic/route.ts
+
+  Client Component Browser:
+    ./OneDrive/Desktop/CODES/29ver-Audio-Forensic/app/globals.css [Client Component Browser]
+    ./OneDrive/Desktop/CODES/29ver-Audio-Forensic/app/layout.tsx [Server Component]
+
+
+    at <unknown> (./OneDrive/Desktop/CODES/29ver-Audio-Forensic/app/globals.css:2459:20)
