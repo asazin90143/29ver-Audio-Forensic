@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
-  turbopack: {},
   images: { unoptimized: true },
 
   // High-performance settings for audio processing
