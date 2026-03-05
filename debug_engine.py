@@ -10,7 +10,7 @@ def check_system():
 
     # 2. Check Demucs
     try:
-        import demucs
+        import demucs  # noqa: F401
         print("2. ✅ Demucs: INSTALLED")
     except ImportError:
         print("2. ❌ Demucs: NOT FOUND")
@@ -30,7 +30,7 @@ def check_system():
     # 4. Check Folder Permissions
     public_path = os.path.join(os.getcwd(), "public", "separated_audio")
     if os.path.exists(public_path):
-        print(f"4. ✅ Output Folder: EXISTS")
+        print("4. ✅ Output Folder: EXISTS")
     else:
         print(f"4. ❌ Output Folder: MISSING ({public_path})")
 

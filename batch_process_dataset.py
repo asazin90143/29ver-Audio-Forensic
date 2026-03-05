@@ -5,7 +5,6 @@ import csv
 import subprocess
 import time
 from datetime import datetime
-from pathlib import Path
 
 # Paths to the classification scripts
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -53,7 +52,7 @@ def run_yamnet_inference(file_path):
                 if line.strip().startswith('{') and line.strip().endswith('}'):
                     try:
                         return json.loads(line)
-                    except:
+                    except Exception:
                         pass
             return {"status": "error", "message": "Failed to parse JSON output", "raw": result.stdout}
             
@@ -86,7 +85,7 @@ def run_acoustic_analysis(file_path):
             else:
                 return {"analysisComplete": False, "message": "No JSON output found"}
         except Exception as e:
-             return {"analysisComplete": False, "message": str(e)}
+            return {"analysisComplete": False, "message": str(e)}
              
     except Exception as e:
         return {"analysisComplete": False, "message": str(e)}

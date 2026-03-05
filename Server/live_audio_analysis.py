@@ -1,14 +1,10 @@
 import librosa
 import numpy as np
 from scipy.signal import find_peaks
-import json
 import tempfile
 import os
-import torch
-import torchaudio
 from datetime import datetime
 import subprocess
-import shutil
 
 def generate_live_analysis(audio_bytes, filename="uploaded_audio", output_dir="separated_stems"):
     """
