@@ -1,0 +1,7 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/_global-error/page": "/_global-error",
+  "/api/classify-audio/forensic/route": "/api/classify-audio/forensic",
+  "/api/classify-audio/route": "/api/classify-audio",
+  "/page": "/"
+}

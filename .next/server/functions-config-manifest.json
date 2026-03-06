@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "functions": {
+    "/api/classify-audio": {
+      "maxDuration": 300
+    },
+    "/api/classify-audio/forensic": {
+      "maxDuration": 300
+    }
+  }
+}
